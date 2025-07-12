@@ -26,6 +26,18 @@ Pygine is a lightweight and accessible 3D game engine built entirely with Python
     * First-person camera controls for scene exploration.
 * **Delta Time Integration:** Physics and movement are frame-rate independent.
 
+## ⚠️ Security Warning Regarding `exec()` ⚠️
+
+**Pygine automatically executes all `.pyg` files found in the `scripts/` directory using Python's `exec()` function.**
+
+While this provides great flexibility, it also means that **any code in these `.pyg` files will be run with full permissions** on your system.
+
+* **Always check the contents of `.pyg` files** from untrusted sources before placing them in your `scripts/` folder and running Pygine.
+* Malicious `.pyg` scripts could potentially perform harmful operations (e.g., delete files, access personal data, install unwanted software).
+* The `exec()` function is also used within Pygine's `engine.py` (or similar core file) to load these scripts.
+
+**Exercise extreme caution when downloading or running Pygine scripts from third parties.**
+
 ## 🚀 Getting Started
 
 To get Pygine up and running, follow these simple steps:
