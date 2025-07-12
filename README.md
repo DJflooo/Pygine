@@ -117,5 +117,6 @@ Pygine is released under the [MIT License](LICENSE.md).
 
 ---
 
-Made with ❤️ by DJflooo.
+Made by DJflooo.
+
 Hope you enjoy :D
