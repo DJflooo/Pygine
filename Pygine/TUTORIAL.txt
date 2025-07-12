@@ -1,0 +1,1543 @@
+###################################################
+------------ Pygine v0.1 Documentation ------------
+###################################################
+
+Welcome to Pygine! This documentation will guide you through the basics of creating games with Pygine, from setting up your first object to understanding its core systems.
+
+
+################
+######---#######
+#####----#######
+####--#--#######
+#######--#######
+#######--#######
+##------------##
+################
+
+1. Tutorial: Getting Started with Pygine
+This section will walk you through the essential steps to create a basic Pygine application.
+
+1.1 The Pygine Workflow
+A typical Pygine application involves these steps:
+
+- Imports: Bring in the necessary Pygine components and Python modules.
+
+- Layer Setup: Define and configure collision layers for your game's objects.
+
+- Utility Constants: Define reusable float3, float4 values for positions, scales, and colors.
+
+- Object Creation: Instantiate obj objects, assign them models, colors, tags, layers, and configure their initial transforms and physics properties.
+
+- Collider Definition: Add AABB colliders to your objects if they need physical interaction or trigger detection.
+
+- Scene Population: Add all created objects to the global Scene.
+
+- Logic Definitions: Write Python functions for object updates (movement, rotation, AI) and collision/trigger callbacks.
+
+- Callback Assignment: Assign these functions to the respective obj.update, obj.on_collision_enter, etc., attributes of your objects.
+
+- Camera Setup: Configure the game camera to follow players or provide a fixed view.
+
+1.2 Your First Pygine Script (main.pyg)
+This will be your first script ! Well, you didn't really make it, but if you understand most of it, it's okay !
+To try it, create a new file inside script called 'first_script.pyg'. Then, copy and paste the script, go into 'main.py', and click on the arrow at the top right (if on VS Code, if you aren't, just launch main.py)
+Every Pygine game script (.pyg file) starts with essential imports and definitions.
+
+
+
+# Essential Pygine imports and globally available elements:
+# These are core components provided by Pygine that you'll use to build your game.
+# - obj: The fundamental building block for all interactive elements in your game world (players, enemies, environment objects).
+# - Input: A utility to easily check keyboard and mouse input states (e.g., if a key is pressed or held down).
+# - cube_model, pyramid_model, sphere_model: Pre-defined 3D mesh data for basic shapes, useful for placeholders or simple objects.
+# - Scene: Your game's central manager for all objects. You add objects to the Scene to make them part of the game world.
+# - main_camera: The default Camera object, providing a viewpoint into your 3D world.
+# - float3, float4: Custom data types (vectors) for representing 3D positions/rotations/scales (float3) and colors/quaternions (float4).
+# - active_camera(): A function that returns the currently active Camera object (either main_camera or another one you define).
+# - get_delta_time(): Returns the time elapsed since the last frame. This is crucial for frame-rate independent movement and physics.
+# - load_model_func(file_path): A function to load custom 3D models from .obj files.
+# - load_texture_func(file_path): A function to load image files as textures to apply to your models.
+# - PROJECT_ROOT_DIR: A global variable pointing to the base directory of your Pygine project, useful for constructing asset paths.
+
+from core.collision_manager import CollisionManager # Used to set up which types of objects can collide with each other.
+import os # Python's operating system module, used here for path manipulation (e.g., joining folder names).
+import math # Provides mathematical functions like sine, cosine, square root, etc., commonly used in game logic. (everybody LOVES math)
+import numpy as np # A powerful library for numerical operations, especially with arrays and matrices, often used internally by 3D engines.
+from core.datatypes import AABB # Imports the Axis-Aligned Bounding Box class, used for defining basic collision shapes.
+
+# --- 1. Define Collision Layers ---
+# Collision layers help categorize game objects and define which categories can interact physically.
+# Each layer is assigned a power of 2 (1, 2, 4, 8, etc.) because this allows them to be combined
+# using bitwise operations (like OR `|` or AND `&`) for efficient collision rule management.
+LAYER_DEFAULT = 1    # A general-purpose layer for objects that don't need special rules.
+LAYER_PLAYER = 2     # Specifically for the player character.
+LAYER_GROUND = 4     # For ground, platforms, or any static environment elements the player can stand on.
+LAYER_ENEMY = 8      # Example layer for enemy characters or dangerous objects.
+
+# Initialize collision rules:
+# By default, all layers defined in `ALL_GAME_LAYERS` will collide with each other.
+# This list is passed to the CollisionManager to set up the initial collision matrix.
+ALL_GAME_LAYERS = [LAYER_DEFAULT, LAYER_PLAYER, LAYER_GROUND, LAYER_ENEMY]
+CollisionManager.initialize_layer_collision_rules(ALL_GAME_LAYERS)
+
+# Example of how to prevent specific layers from colliding:
+# Uncomment the line below if you wanted the Player and Enemy layers to pass through each other.
+# CollisionManager.set_layer_collision(LAYER_PLAYER, LAYER_ENEMY, False)
+
+# --- 2. Define Reusable Colors (using float4) ---
+# Defining colors as variables makes your code cleaner and easier to read.
+# float4 is used because colors often have Red, Green, Blue, and Alpha (transparency) components.
+RED = float4(1.0, 0.0, 0.0, 1.0) # Full Red, no Green, no Blue, fully Opaque (Alpha = 1.0)
+GREEN = float4(0.0, 1.0, 0.0, 1.0) # Full Green, fully Opaque
+WHITE = float4(1.0, 1.0, 1.0, 1.0) # Full Red, Green, Blue (results in White), fully Opaque
+TRANSPARENT = float4(0.0, 0.0, 0.0, 0.0) # No color, fully Transparent (Alpha = 0.0)
+
+# --- 3. Define Reusable Scales (using float3) ---
+# Similar to colors, defining common scales as variables improves code clarity.
+# float3 is used for scale as it has X, Y, and Z components.
+PLATFORM_SCALE = float3(10.0, 1.0, 10.0) # Creates a wide, flat platform.
+PLAYER_SCALE = float3(0.5, 0.5, 0.5) # Makes the player cube smaller.
+
+# --- 4. Create Game Objects ---
+# This section is where you instantiate (create) the actual objects that will populate your game world.
+
+# Create a player object:
+# Every game object (`obj`) needs a unique name.
+player = obj(
+    "MyPlayer",      # Unique name for this specific object instance.
+    model=cube_model,  # Assigns the built-in cube mesh for its visual representation.
+    color=GREEN,     # Sets the player's primary color.
+    tag="Player",    # A string tag for quick identification (e.g., in collision checks).
+    layer=LAYER_PLAYER # Assigns the player to its dedicated collision layer.
+)
+player.position.y = 5.0 # Sets the player's initial height in the world.
+player.Scale(PLAYER_SCALE) # Applies the predefined player scale.
+player.apply_gravity = True # Enables gravity for the player, making it fall if not supported.
+player.velocity = float3(0, 0, 0) # Initializes the player's movement speed and direction to zero.
+player.is_grounded = False # A custom flag to track if the player is currently on solid ground (important for jumping).
+
+# Add a collider to the player:
+# Colliders are invisible shapes used to detect physical interactions.
+# An AABB (Axis-Aligned Bounding Box) is defined by its local center and total size.
+# Pygine automatically converts this local AABB into an OBB (Oriented Bounding Box) in world space
+# during collision checks, accounting for the object's position, rotation, and scale.
+player.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0)) # Basic pre-given shapes will always be 2x2x2. If you import your own, you will have to do trial and error
+player.is_trigger = False # False means it's a "solid" collider (causes physical response); True means it's a "trigger zone" (detects overlap without physical blocking).
+
+# Load a texture for the player:
+# Attempts to load an image file from the 'assets/textures' folder and apply it to the player.
+player_texture_path = os.path.join(PROJECT_ROOT_DIR, "assets", "textures", "player_texture.png")
+if os.path.exists(player_texture_path): # Checks if the texture file actually exists at the specified path.
+    player.texture = load_texture_func(player_texture_path)
+else:
+    print(f"Warning: Player texture not found at {player_texture_path}")
+
+# Create a ground platform:
+ground = obj(
+    "Ground",
+    model=cube_model,
+    color=WHITE,
+    tag="Ground",
+    layer=LAYER_GROUND,
+    is_static=True # Static objects (like ground) don't move and are optimized for collision checks, improving performance.
+)
+ground.position.y = -2.0 # Positions the ground below the player.
+ground.Scale(PLATFORM_SCALE) # Scales the cube into a large, flat platform.
+ground.apply_gravity = False # Prevents the ground from falling due to gravity.
+
+# Add a collider to the ground:
+ground.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+ground.is_trigger = False
+
+# --- 5. Define Object Update Logic ---
+# Update functions are called once per frame for each object they are assigned to.
+# This is where you implement behaviors that change over time, like movement, rotation, or input handling.
+
+# Define the per-frame logic for the player object:
+def player_update_logic(current_active_camera, delta_time):
+    # 'current_active_camera' is the camera currently being used for rendering.
+    # 'delta_time' is the time in seconds since the last frame, essential for consistent movement speed across different frame rates.
+    
+    move_speed = 5.0 # Defines how fast the player moves horizontally (units per second).
+    jump_force = 10.0 # Defines the initial upward velocity when the player jumps.
+
+    # Reset horizontal velocity (X and Z components) to zero at the start of each frame.
+    # This ensures that the player stops immediately when no horizontal movement keys are pressed.
+    # The Y velocity (vertical movement due to gravity or jumping) is preserved.
+    player.SetVelocity(0.0, player.velocity.y, 0.0)
+
+
+    # --- Handle Movement Input ---
+    # `move_vector_world` will accumulate the directional input for forward/backward movement.
+    # It starts at 0.0 and will become -1.0 for W (forward) or 1.0 for S (backward).
+    move_vector_world = 0.0
+
+    if Input.is_key_down("W"): # Checks if the 'W' key is currently being held down (Z if AZERTY).
+        move_vector_world += -1.0 # Add -1.0 for forward movement (conventionally -Z in camera space).
+    if Input.is_key_down("S"): # Checks if the 'S' key is currently being held down.
+        move_vector_world += 1.0 # Add +1.0 for backward movement.
+    
+    if Input.is_key_down("A"): # Checks if the 'A' key is currently being held down (Q if AZERTY).
+        # Rotates the player object left around its Y-axis.
+        # This is for character models that visually turn with 'A' and 'D'.
+        # The rotation speed is multiplied by delta_time for smooth, frame-rate independent rotation.
+        player.Turn(0, 90.0 * delta_time, 0) 
+    if Input.is_key_down("D"): # Checks if the 'D' key is currently being held down.
+        # Rotates the player object right around its Y-axis.
+        player.Turn(0, -90.0 * delta_time, 0)
+    
+    # Set horizontal velocity based on input:
+    # `AddVelocityRelativeToRotation` is used to apply movement relative to a given Y-axis rotation (yaw).
+    # The first argument (0.0) is for local X-axis movement (strafe), which is not currently used for player movement here.
+    # The second argument (0.0) ensures no vertical velocity is added by horizontal movement.
+    # The third argument (move_vector_world * move_speed) determines the forward/backward speed.
+    # The last argument `current_active_camera.rotation.y` aligns the movement direction with the camera's facing direction.
+    player.AddVelocityRelativeToRotation(
+        0.0,
+        0.0, 
+        move_vector_world * move_speed,
+        current_active_camera.rotation.y
+    )
+
+    # Jump logic:
+    # Checks if the 'SPACE' key was just pressed AND if the player is currently on the ground.
+    if Input.is_key_pressed("SPACE") and player.is_grounded:
+        # Adds an upward vertical force to the player's velocity, initiating a jump.
+        # The existing X and Z velocities are maintained, and the Y velocity is set to `jump_force`.
+        # The camera rotation argument here is largely irrelevant for purely vertical jump,
+        # but is kept as per the original function's signature.
+        player.AddVelocityRelativeToRotation(player.velocity.x, jump_force, player.velocity.z, current_active_camera.rotation.y)
+        player.is_grounded = False # Player is no longer grounded once they jump.
+
+# Define a function for a simple rotating object (an example of another object's behavior)
+rotating_obstacle = obj(
+    "Spinner",       # Name of the object.
+    model=cube_model,  # Uses a cube model.
+    color=RED,       # Sets its color to red.
+    tag="Hazard",    # Tags it as a "Hazard" for collision detection purposes.
+    layer=LAYER_ENEMY # Assigns it to the enemy collision layer.
+)
+rotating_obstacle.MoveGlobal(5.0, 0.0, -5.0) # Sets its initial world position.
+rotating_obstacle.Scale(2.0, 2.0, 0.5) # Scales it to be a flat, wide obstacle.
+rotating_obstacle.collider = AABB.from_center_and_size(float3(0,0,0), float3(2.0,2.0,2.0)) # Adds a collider.
+rotating_obstacle.is_trigger = False # Makes it a solid object.
+rotating_obstacle.apply_gravity = False # Prevents this obstacle from falling.
+
+def spinner_update_logic(current_active_camera, delta_time):
+    # This function defines the spinning behavior for the 'Spinner' object.
+    # It rotates the object around its Y-axis by 120 degrees per second, ensuring smooth rotation.
+    rotating_obstacle.Turn(0, 120.0 * delta_time, 0)
+
+# --- 6. Define Collision/Trigger Callbacks ---
+# These functions are called by Pygine's CollisionManager when collision events occur.
+# `self_obj`: The object that owns this callback (e.g., the player).
+# `other_obj`: The object that `self_obj` collided with.
+# `collision_normal`: A float3 vector indicating the direction of the collision.
+
+def on_player_collision_enter(self_obj, other_obj, collision_normal):
+    # Called in the *first frame* that two colliders start touching.
+    print(f"{self_obj.name} collided with {other_obj.name} (Enter). Normal: {collision_normal}")
+    
+    # collision_normal explanation :
+    # y : 1.0 = touched below; -1.0 = touched above
+    # x : 1.0 = touched left; -1.0 = touched right
+    # z : 1.0 = touched backwards; -1.0 = touched forward
+
+    # If the player hits something from below (e.g., jumps into a ceiling/platform)
+    if collision_normal.y < -0.7: # A normal of (-0, -1, 0) means hitting directly from below. -0.7 allows for slight angles.
+        self_obj.velocity.y = 0 # Immediately stops any upward motion.
+
+    # If the collision normal points mostly up, the player is likely on solid ground.
+    # This is how we detect if the player has landed.
+    if collision_normal.y > 0.7 and other_obj.GetTag() == "Ground":
+        self_obj.is_grounded = True # Set the custom 'is_grounded' flag to true.
+    
+    if other_obj.GetTag() == "Hazard":
+        print("Player hit a hazard!")
+        # This is where you would add game logic for hitting a hazard, e.g.,
+        # player health reduction, respawn, game over.
+
+def on_player_collision_stay(self_obj, other_obj, collision_normal):
+    # Called in *every frame* that two colliders continue to touch.
+    # This is particularly useful for maintaining states, like keeping 'is_grounded' true.
+    if collision_normal.y > 0.7 and other_obj.GetTag() == "Ground":
+        self_obj.is_grounded = True
+
+def on_player_collision_exit(self_obj, other_obj, collision_normal):
+    # Called in the *first frame* that two colliders stop touching.
+    print(f"{self_obj.name} stopped colliding with {other_obj.name} (Exit). Normal: {collision_normal}")
+    if other_obj.GetTag() == "Ground":
+        self_obj.is_grounded = False # Player is no longer considered grounded after leaving the ground object.
+
+# Trigger callbacks work similarly to collision callbacks, but they don't involve
+# physical blocking or a collision normal. They are purely for detecting overlap.
+def on_player_trigger_enter(self_obj, other_obj, collision_normal):
+    # Called when `self_obj` (the player) enters a collider marked as a `trigger`.
+    print(f"{self_obj.name} entered trigger zone of {other_obj.name}.")
+    if other_obj.GetTag() == "RespawnZone": # Example: If player enters a trigger tagged "RespawnZone".
+        print("Player entered respawn zone!")
+        self_obj.MoveGlobal(0, 5.0, 0) # Teleport the player to a new position.
+
+# --- 7. Assign Update and Callback Functions ---
+# After defining your objects and their behaviors, you need to "assign" those behaviors
+# to the objects by setting their respective properties.
+player.update = player_update_logic             # Assigns the `player_update_logic` function to be called for the player every frame.
+player.on_collision_enter = on_player_collision_enter # Assigns the `on_player_collision_enter` function to handle collision start events.
+player.on_collision_stay = on_player_collision_stay   # Assigns the `on_player_collision_stay` function to handle continuous collision events.
+player.on_collision_exit = on_player_collision_exit   # Assigns the `on_player_collision_exit` function to handle collision end events.
+player.on_trigger_enter = on_player_trigger_enter   # Assigns the `on_player_trigger_enter` function to handle trigger enter events.
+
+rotating_obstacle.update = spinner_update_logic # Assigns the `spinner_update_logic` to the rotating obstacle.
+
+# --- 8. Add all objects to the Scene ---
+# Objects must be added to the game `Scene` for Pygine to manage them, render them,
+# and process their update and collision logic.
+Scene.add_object(player)
+Scene.add_object(ground)
+Scene.add_object(rotating_obstacle)
+
+# --- 9. Camera Setup (e.g., 3rd Person Follow Camera) ---
+# This section sets up a camera that follows the player, creating a third-person view.
+# IMPORTANT : You don't necessarly need to understand this part. Developpers' favorite keys are Ctrl, C and V.
+# A `camera_controller` object is created as a convenient way to attach update logic for the camera.
+camera_controller = obj("Camera_Controller")
+
+# Define constants for camera behavior:
+CAMERA_FOLLOW_DISTANCE = 10.0 # How far behind the player the camera should try to stay.
+CAMERA_HEIGHT_OFFSET = 3.0    # How high above the player the camera should try to stay.
+CAMERA_SMOOTH_SPEED = 5.0     # How quickly the camera interpolates to its target position (higher value means faster snap).
+
+# This function defines how the game camera behaves each frame.
+# It calculates a target position based on the player's position and rotation,
+# then smoothly moves the camera towards that target, and finally makes the camera
+# look at the player.
+def game_camera_update(active_cam, delta_time):
+    # Get the player's full transformation matrix, which includes its position, rotation, and scale.
+    player_model_matrix = player.get_model_matrix()
+    # Extract only the 3x3 rotation part of the player's model matrix.
+    # This is used to rotate the camera's local offset into world space based on the player's facing direction.
+    player_rotation_matrix_3x3 = player_model_matrix[:3, :3] 
+
+    # Define the camera's desired offset relative to the player in the player's local space.
+    # (0, Y_offset, Z_offset_back) - Z is typically forward/backward, so positive Z is 'back'.
+    local_offset = np.array([0.0, CAMERA_HEIGHT_OFFSET, CAMERA_FOLLOW_DISTANCE], dtype='f4')
+    # Rotate this local offset by the player's world rotation to get the actual world-space offset.
+    world_offset = player_rotation_matrix_3x3 @ local_offset 
+
+    # Calculate the camera's target world position: player's position + the calculated world offset.
+    target_pos = player.get_world_position() + float3(world_offset[0], world_offset[1], world_offset[2])
+
+    # Smoothly move the camera's current position towards the `target_pos`.
+    # `lerp_factor` controls the speed of this smooth movement (Linear Interpolation).
+    # `min(1.0, ...)` prevents `lerp_factor` from exceeding 1, which would cause overshooting.
+    lerp_factor = min(1.0, CAMERA_SMOOTH_SPEED * delta_time) 
+    active_cam.position.x += (target_pos.x - active_cam.position.x) * lerp_factor
+    active_cam.position.y += (target_pos.y - active_cam.position.y) * lerp_factor
+    active_cam.position.z += (target_pos.z - active_cam.position.z) * lerp_factor
+
+    # Make the camera look at the player:
+    # Calculate the vector from the camera's current position to the player's position.
+    look_direction = player.get_world_position() - active_cam.position
+    if look_direction.length() > 1e-6: # Check length to avoid division by zero if camera is exactly at player's position.
+        look_direction.normalize() # Normalize the vector to get a unit direction vector.
+        
+        # Calculate pitch (up/down rotation) and yaw (left/right rotation) for the camera.
+        # These calculations convert a 3D look direction vector into Euler angles.
+        # `math.atan2` is used for robustness with signs.
+        pitch_radians = math.atan2(look_direction.y, math.sqrt(look_direction.x**2 + look_direction.z**2))
+        yaw_radians = math.atan2(-look_direction.x, -look_direction.z) # Adjust for OpenGL's -Z forward convention.
+
+        # Apply the calculated pitch and yaw to the camera's rotation in degrees.
+        active_cam.rotation.x = math.degrees(pitch_radians)
+        active_cam.rotation.y = math.degrees(yaw_radians)
+        active_cam.rotation.z = 0.0 # Typically, a camera doesn't "roll" (Z-axis rotation) in a 3rd person view.
+
+# Assign the `game_camera_update` function to the `camera_controller` object.
+camera_controller.update = game_camera_update
+# Add the camera controller to the scene so its update logic is executed every frame.
+Scene.add_object(camera_controller) 
+
+print("Pygine game script loaded successfully!")
+
+
+
+
+
+
+
+
+################
+######-----#####
+####--####--####
+####-####--#####
+######---#######
+###---##########
+##------------##
+################
+
+
+2. Python Dictionary for Pygine Developers
+Pygine is built with Python, so a good understanding of core Python concepts will be invaluable. This section highlights Python features frequently used in Pygine development.
+
+2.1 Basic Data Types and Structures
+Variables:
+
+- int: Whole numbers (e.g., 5, -10).
+
+- float: Decimal numbers (e.g., 3.14, 0.5, 10.0). Used extensively for positions, rotations, colors.
+
+- Strings: str: Text enclosed in single or double quotes (e.g., "Player Name", 'my_texture.png').
+
+- Booleans: bool: True or False. Used for flags like is_grounded or is_trigger.
+
+- Lists: Ordered collections of items, mutable (can be changed).
+Example :
+my_list = [1, 2, 3]
+my_list.append(4) # Adds 4 to the end
+print(my_list[0]) # Accesses the first element (0-indexed)
+Tuples: Ordered collections of items, immutable (cannot be changed after creation). Often used for fixed-size data.
+
+
+
+my_tuple = (10, 20, 30)
+# my_tuple[0] = 5 # This would raise an error
+Dictionaries: dict: Unordered collections of key-value pairs, mutable. Useful for storing associated data.
+
+
+my_dict = {"name": "Player", "health": 100}
+print(my_dict["name"]) # Access value by key
+my_dict["health"] = 90
+Sets: set: Unordered collections of unique items, mutable. Useful for tracking unique relationships (like _colliding_with internally).
+
+2.2 Control Flow
+if / elif / else: For conditional execution.
+
+
+if player.is_grounded:
+    # Do something if player is grounded
+    pass
+elif player.velocity.y > 0:
+    # Do something if player is moving upwards
+    pass
+else:
+    # Do something otherwise
+    pass
+for loops: To iterate over sequences (lists, tuples, ranges).
+
+
+for i in range(10): # Iterates from 0 to 9
+    print(i)
+while loops: To repeat code as long as a condition is true.
+
+
+while get_delta_time() < 0.1: # Example (don't do this in main game loop)
+    # Wait for delta time to reach a value
+    pass
+2.3 Functions and Object-Oriented Programming (OOP)
+Functions (def): Reusable blocks of code.
+
+
+def greet(name):
+    print(f"Hello, {name}!")
+
+greet("Pygine User")
+Classes (class): Blueprints for creating objects (obj is a prime example!).
+
+
+class MyComponent:
+    def __init__(self, owner_object): # Constructor method
+        self.owner = owner_object
+        print(f"Component created for {self.owner.name}")
+
+    def activate(self): # Method of the class
+        print("Component activated!")
+
+# Example usage:
+# my_obj = obj("MyObject")
+# comp = MyComponent(my_obj)
+# comp.activate()
+self: Refers to the instance of the class (the specific object) within its methods.
+
+__init__: The constructor method, called when a new object of the class is created.
+
+Imports: To use code from other Python files (modules).
+
+
+import os # Imports the 'os' module
+from core.datatypes import float3 # Imports only 'float3' from 'core.datatypes'
+2.4 Useful Modules
+math module: Provides mathematical functions (math.sqrt, math.sin, math.cos, math.atan2, math.degrees, math.radians).
+
+
+import math
+angle_rad = math.radians(90)
+print(math.sin(angle_rad)) # Output: 1.0
+os.path: Functions for manipulating file paths, crucial when loading assets.
+
+
+import os
+asset_path = os.path.join("assets", "textures", "my_texture.png")
+# Ensures path works on Windows (uses \) and Linux/macOS (uses /)
+numpy (NumPy): A powerful library for numerical computation, especially with arrays and matrices. Pygine uses it internally for transformations and vector math. While you might not directly manipulate NumPy arrays often, understanding that vector/matrix operations (@ operator for matrix multiplication) are handled by it can be helpful.
+
+
+
+################
+#####------#####
+####-######-####
+########---#####
+###########-####
+####-######-####
+#####------#####
+################
+
+3. Pygine Dictionary (Custom Classes, Functions & Variables)
+This is your go-to reference for everything unique to Pygine.
+
+3.1 Core Engine Globals & Functions
+These are automatically available in your .pyg script.
+
+obj:
+
+Description: The fundamental building block of your game world. Every interactive or visible entity in your scene is an obj.
+
+Creation: my_object = obj("MyObjectName", model=cube_model, color=float4(1,0,0,1))
+
+See also: obj Class Reference below for full details.
+
+Input:
+
+Description: A static class for querying keyboard and mouse input states.
+
+Methods:
+
+Input.is_key_down(key_code: str) -> bool: Returns True if the key identified by key_code is currently held down.
+
+Example: if Input.is_key_down("W"): # Player is pressing W
+
+Input.is_key_pressed(key_code: str) -> bool: Returns True if the key was just pressed in this frame. Useful for single-action events like jumping.
+
+Example: if Input.is_key_pressed("SPACE"): # Player just pressed Space
+
+Input.is_key_released(key_code: str) -> bool: Returns True if the key was just released in this frame.
+
+Example: if Input.is_key_released("R"): # Player just let go of R
+
+key_code: Standard uppercase characters for letters ("A", "Z"), "SPACE" for spacebar, "ESCAPE", "LEFT_SHIFT", "LEFT_CONTROL", "LEFT_ALT", "TAB", "RETURN", "BACKSPACE", "DELETE", "UP", "DOWN", "LEFT", "RIGHT" (for arrow keys).
+
+cube_model, pyramid_model:
+
+Description: Pre-loaded Model objects representing a unit cube and a unit pyramid. These are useful for prototyping or simple geometry.
+
+Usage: Assign directly to obj's model parameter.
+
+Example: my_box = obj("Box", model=cube_model)
+
+Scene:
+
+Description: Manages all active obj instances in your game world. Objects must be added to the scene to be rendered, updated, and participate in collision detection.
+
+Methods:
+
+Scene.add_object(obj_instance: obj): Adds an obj to the scene. Its update method (if assigned) will be called, and it will be rendered and checked for collisions.
+
+Example: Scene.add_object(player)
+
+main_camera:
+
+Description: The default Camera object used for rendering your scene. You manipulate its position and rotation to control the viewpoint.
+
+Type: Camera (see Camera Class Reference).
+
+Usage: Access directly, e.g., main_camera.position.x = 10.0.
+
+float3, float4:
+
+Description: Custom vector classes for representing 3D (float3) and 4D (float4) floating-point values. They are used for positions, rotations (Euler angles), scales, and colors (RGBA).
+
+Construction:
+
+pos = float3(x, y, z)
+
+color = float4(r, g, b, a)
+
+Attributes:
+
+float3: .x, .y, .z
+
+float4: .x, .y, .z, .w (or .r, .g, .b, .a for colors)
+
+Operations: Support standard arithmetic operations (+, -, *, /) for component-wise operations.
+
+Example: new_pos = old_pos + float3(0, 1, 0)
+
+Example: scaled_vec = my_vec * 2.0
+
+Methods:
+
+my_float3.normalize(): Normalizes the vector (makes its length 1.0). Returns self.
+
+my_float3.magnitude(): Returns the length (magnitude) of the vector.
+
+my_floatN.to_list(): Returns a Python list [x, y, z] or [r, g, b, a].
+
+active_camera() -> Camera:
+
+Description: Returns the Camera object that is currently active for rendering. In most basic Pygine applications, this will be main_camera.
+
+Usage: cam = active_camera()
+
+get_delta_time() -> float:
+
+Description: Returns the time in seconds that elapsed since the last frame. This is crucial for making your game logic (movement, rotation, physics) run consistently regardless of the frame rate.
+
+Usage: player.TranslateGlobal(0, 0, -player_speed * get_delta_time())
+
+load_model_func(file_path: str) -> Model:
+
+Description: Loads a 3D model from an .obj file. It parses the mesh data and returns a Model object ready to be assigned to an obj.
+
+file_path: Should be an absolute path or a path relative to PROJECT_ROOT_DIR. Use os.path.join(PROJECT_ROOT_DIR, "path", "to", "model.obj") for robustness.
+
+Example: custom_model = load_model_func(os.path.join(PROJECT_ROOT_DIR, "assets", "models", "my_mesh.obj"))
+
+load_texture_func(file_path: str) -> Texture:
+
+Description: Loads an image file as a texture. Pygine currently supports common image formats. The loaded texture can be assigned to an obj.texture attribute for rendering with lighting and transparency.
+
+file_path: Similar to load_model_func, use os.path.join for the path.
+
+Example: player.texture = load_texture_func(os.path.join(PROJECT_ROOT_DIR, "assets", "textures", "player_skin.png"))
+
+PROJECT_ROOT_DIR:
+
+Description: A string constant that points to the absolute path of your game's root directory (where your main executable or engine.py lives). Use this with os.path.join to reliably locate asset files.
+
+3.2 obj Class Reference
+The obj class is the core of Pygine for creating interactive elements.
+
+Constructor:
+
+
+obj(
+    name: str = "Unnamed",
+    model: Model = None,
+    collider: Union[AABB, OBB] = None, # Usually an AABB for local colliders
+    is_trigger: bool = False,
+    color: float4 = None, # Defaults to magenta if None
+    tag: str = "Default",
+    layer: int = 1,
+    is_static: bool = False
+)
+name: A unique string identifier for debugging/organization.
+
+model: A Model object (like cube_model, pyramid_model, or from load_model_func). Determines the visual mesh.
+
+collider: An AABB (Axis-Aligned Bounding Box) or OBB (Oriented Bounding Box) object. Defines the shape for collision detection. If an AABB is provided, it's considered local to the object and transformed into a world OBB for checks.
+
+is_trigger: If True, this object's collider will only detect overlaps (on_trigger_enter/exit) but won't cause physical responses. If False, it's a solid collider.
+
+color: A float4 for the object'sRGBA color. Used if no texture is assigned or for tinting.
+
+tag: A string label (e.g., "Player", "Enemy", "Ground") for identifying object types in collision callbacks without checking specific instances.
+
+layer: An integer representing the object's collision layer (e.g., LAYER_PLAYER, LAYER_GROUND). Used with CollisionManager for fine-grained collision filtering.
+
+is_static: If True, the object is assumed to be immobile. This allows collision detection to optimize and avoid unnecessary checks for moving objects against it. Set to True for floors, walls, etc.
+
+Key Attributes:
+
+id: A unique integer ID assigned automatically.
+
+name: The name assigned in the constructor.
+
+position: float3: The object's local position relative to its parent. If no parent, it's world position.
+
+rotation: float3: The object's local Euler angles (in degrees, YXZ order) relative to its parent.
+
+scale: float3: The object's local scale relative to its parent.
+
+model: The Model object assigned.
+
+collider: The AABB or OBB assigned.
+
+is_trigger: Boolean indicating trigger status.
+
+is_static: Boolean indicating static status.
+
+velocity: float3: The object's world-space linear velocity. Manipulated for physics.
+
+acceleration: float3: The object's world-space linear acceleration.
+
+apply_gravity: bool: If True, gravity will be applied to the object's velocity.
+
+gravity_multiplier: float: Scales the effect of gravity (defaults to 1.0).
+
+is_grounded: bool: A common flag used in platformers; needs to be managed by collision callbacks.
+
+color: float4: The object's color.
+
+texture: Texture: The Texture object to be applied.
+
+Update and Collision Callbacks (Assign these as functions):
+
+obj.update: Callable[[Camera, float], None]: A function assigned to this attribute will be called every frame for this object. It receives the current_active_camera and delta_time. This is where you put your object's custom logic (movement, AI, etc.).
+
+Example: player.update = player_update_logic
+
+obj.on_collision_enter: Callable[['obj', 'obj', float3], None]: Called once when this object's collider starts touching another solid collider.
+
+obj.on_collision_stay: Callable[['obj', 'obj', float3], None]: Called every frame while this object's collider is touching another solid collider.
+
+obj.on_collision_exit: Callable[['obj', 'obj', float3], None]: Called once when this object's collider stops touching another solid collider.
+
+obj.on_trigger_enter: Callable[['obj', 'obj', float3], None]: Called once when this object's trigger collider starts overlapping another collider (solid or trigger).
+
+obj.on_trigger_exit: Callable[['obj', 'obj', float3], None]: Called once when this object's trigger collider stops overlapping another collider.
+
+Callback Arguments:
+
+self_obj: The obj instance that owns the callback (e.g., player).
+
+other_obj: The obj instance it collided/triggered with.
+
+collision_normal: A float3 representing the direction of the collision. For on_collision_enter/stay/exit, it points from other_obj to self_obj at the point of impact. For triggers, its meaning can be less direct but still indicates an overlap direction.
+
+Transformation Methods:
+
+obj.MoveGlobal(x_or_vector: Union[float, float3, List[float]], y: float = None, z: float = None):
+
+Description: Sets the object's world-space position to the specified coordinates. This intelligently adjusts the object's local position relative to its parent to achieve the desired world position.
+
+Example: player.MoveGlobal(0, 10, 0) or player.MoveGlobal(float3(0, 10, 0))
+
+obj.TranslateGlobal(x_or_vector: Union[float, float3, List[float]], y: float = None, z: float = None):
+
+Description: Moves the object by a specified delta vector in world-space. Adds the delta to the object's current world position.
+
+Example: player.TranslateGlobal(0, 0, -5 * get_delta_time())
+
+obj.AddVelocityLocal(x_or_vector: Union[float, float3, List[float]], y: float = None, z: float = None):
+
+Description: Adds a velocity vector specified in the object's local coordinate space to the object's current world-space velocity. Useful for character movement relative to facing direction.
+
+Example: player.AddVelocityLocal(0, 0, -5) (moves forward relative to player's front)
+
+obj.Turn(x_or_vector: Union[float, float3, List[float]], y: float = None, z: float = None):
+
+Description: Rotates the object by the given delta degrees on its local x, y, and z axes.
+
+Example: obj.Turn(0, 90 * get_delta_time(), 0) (rotates around its local Y-axis)
+
+obj.Scale(x_or_float3: Union[float, float3, List[float]], y: float = None, z: float = None):
+
+Description: Sets the object's local scale on its x, y, and z axes.
+
+Example: my_object.Scale(2.0, 2.0, 2.0) (uniform scale) or my_object.Scale(float3(2.0, 1.0, 0.5))
+
+Physics Methods:
+
+obj.SetVelocity(x_or_vector: Union[float, float3, List[float]], y: float = None, z: float = None):
+
+Description: Sets the object's world-space velocity to a specific vector. Overrides current velocity.
+
+Example: player.SetVelocity(0, 10, 0) (sets upward velocity for a jump)
+
+Utility Methods:
+
+obj.get_world_position() -> float3:
+
+Description: Calculates and returns the object's current world-space position, taking into account all parent transformations.
+
+obj.SetColor(x_or_vector: Union[float, float4, List[float]], y: float = None, z: float = None, w: float = None):
+
+Description: Sets the object's RGBA color.
+
+Example: my_object.SetColor(RED) or my_object.SetColor(1.0, 0.0, 0.0, 1.0)
+
+obj.GetTag() -> str:
+
+Description: Returns the string tag assigned to the object.
+
+obj.GetLayer() -> int:
+
+Description: Returns the integer layer assigned to the object.
+
+obj.parent: obj (Property Getter/Setter):
+
+Description: Gets or sets the parent obj of this object. Setting a parent automatically adds self to the parent's children and updates physics state.
+
+Example: child_obj.parent = parent_obj
+
+obj.add_child(child_obj: 'obj'):
+
+Description: Adds another obj as a child of this object. This is equivalent to setting child_obj.parent = self.
+
+Example: player.add_child(hat)
+
+obj.remove_child(child_obj: 'obj'):
+
+Description: Removes a specified child obj from this object. This is equivalent to setting child_obj.parent = None.
+
+3.3 Camera Class Reference (main_camera)
+The Camera object controls what is seen on screen.
+
+Attributes:
+
+position: float3: The camera's world-space position.
+
+rotation: float3: The camera's Euler angles (degrees) representing its orientation. Pygine's camera typically looks along its local -Z axis. Yaw (Y-rotation) controls left/right look, Pitch (X-rotation) controls up/down look.
+
+(Other attributes like FOV, near/far clip planes are internal for now)
+
+Usage: You directly modify main_camera.position and main_camera.rotation within your update functions (like game_camera_update in the example).
+
+3.4 Collision System Reference
+Pygine's collision system handles interactions between objects.
+
+CollisionManager:
+
+Description: A static class that manages collision rules and performs collision detection.
+
+Methods:
+
+CollisionManager.initialize_layer_collision_rules(all_layers: List[int]): Sets up the initial collision matrix. By default, all layers in the provided list will collide with each other. This should be called once at the start of your game.
+
+CollisionManager.set_layer_collision(layer1: int, layer2: int, collides: bool): Explicitly sets whether objects on layer1 should collide with objects on layer2.
+
+collides=True: They will collide.
+
+collides=False: They will ignore each other (only triggers might fire if applicable).
+
+Example: CollisionManager.set_layer_collision(LAYER_PLAYER, LAYER_ENEMY, False)
+
+Collision Layers:
+
+Description: Integers used to categorize objects for collision filtering. They must be powers of 2 (1, 2, 4, 8, 16, ...). This allows for efficient bitwise operations to determine collision rules.
+
+Definition: You define these as constants in your main.pyg script.
+
+Example:
+
+
+LAYER_DEFAULT = 1
+LAYER_PLAYER = 2
+LAYER_ENEMY = 4
+LAYER_GROUND = 8
+AABB (Axis-Aligned Bounding Box):
+
+Description: A simple rectangular bounding volume, defined by its center and size. In Pygine, when assigned to obj.collider, it's considered to be in the object's local space. Pygine then transforms it into a world-space OBB for accurate collision checks against other objects.
+
+Creation:
+
+AABB.from_center_and_size(center: float3, size: float3) -> AABB: Creates an AABB.
+
+center: The local-space center of the box relative to the object's pivot. For models centered at origin, float3(0,0,0) is typical.
+
+size: The full dimensions (width, height, depth) of the box.
+
+Example: player.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0)) (a 2x2x2 unit cube collider)
+
+OBB (Oriented Bounding Box):
+
+Description: A bounding box that can be arbitrarily rotated. Pygine converts local AABBs into world-space OBBs for accurate collision detection. You generally won't create OBBs directly for obj.collider unless you have a very specific, pre-calculated world-space collider you want to use.
+
+Internal Creation Method (for reference):
+
+OBB.from_aabb_and_transform(aabb: AABB, position: float3, world_rotation_matrix: np.ndarray, scale: float3) -> OBB: Used internally by obj.get_world_collider() to transform a local AABB into a world OBB.
+
+
+
+
+
+####################################################
+#________###__##########__##__#_____##_#######______ 
+|  ____\ \#/ /####/\###|  \/  |  __ \| |####|  ____|
+| |__###\ V /####/  \##| \  / | |__) | |####| |__   
+|  __|###> <####/ /\ \#| |\/| |  ___/| |####|  __|  
+| |____#/ . \##/ ____ \| |##| | |####| |____| |____ 
+|______/_/#\_\/_/####\_\_|##|_|_|####|______|______|
+####################################################
+
+
+
+
+
+
+# The engine now provides 'obj', 'Input', 'cube_model', 'Scene', 'main_camera', float3, ######
+# a function 'active_camera()' which returns the currently active Camera object, #############
+# a function 'get_delta_time()' which returns the current delta time, ########################
+# and a function 'load_model_func(file_path)' which returns the corresponding model ##########
+
+
+from core.collision_manager import CollisionManager
+import os
+import math
+import numpy as np # Import numpy for vector-matrix multiplication
+from core.datatypes import matrix_from_euler_angles # Import this function
+
+
+# Initalize all the Layers (used for collisions and for specific detection)
+LAYER_DEFAULT = 1          # 00001
+LAYER_PLAYER = 2           # 00010
+LAYER_ENEMY = 4            # 00100
+LAYER_GROUND = 8           # 01000
+LAYER_PROJECTILE = 16      # 10000 (Example for later)
+
+
+# Call this once at the start of your game to set up which layers initially collide.
+# By default, we'll make all defined layers collide with each other.
+ALL_GAME_LAYERS = [LAYER_DEFAULT, LAYER_PLAYER, LAYER_ENEMY, LAYER_GROUND, LAYER_PROJECTILE] # Include all your layers
+CollisionManager.initialize_layer_collision_rules(ALL_GAME_LAYERS)
+
+# Example: If you want Player to NOT physically collide with Enemy (only trigger detection), uncomment:
+# CollisionManager.set_layer_collision(LAYER_PLAYER, LAYER_ENEMY, False)
+# Example: If you want Projectiles to only collide with Enemies and Default, but not Player:
+# CollisionManager.set_layer_collision(LAYER_PLAYER, LAYER_PROJECTILE, False)
+# CollisionManager.set_layer_collision(LAYER_GROUND, LAYER_PROJECTILE, False) # Projectiles ignore ground
+
+# Initalizing basic colors (RGBA) :
+RED = float4(1.0, 0.0, 0.0, 1.0)
+GREEN = float4(0.0, 1.0, 0.0, 1.0)
+BLUE = float4(0.0, 0.0, 1.0, 1.0)
+YELLOW = float4(0.6, 0.6, 0.1, 1.0)
+ORANGE = float4(0.9, 0.5, 0.1, 1.0)
+LIGHT_PINK = float4(1.0, 0.3, 0.3, 1.0)
+CYAN = float4(0.0, 1.0, 1.0, 1.0)
+PURPLE = float4(1.0, 0.0, 1.0, 1.0)
+BROWN = float4(1.0, 1.0, 0.0, 1.0)
+BLACK = float4(0.0, 0.0, 0.0, 1.0)
+DARK_GREY = float4(0.3, 0.3, 0.3, 1.0)
+GREY = float4(0.5, 0.5, 0.5, 1.0)
+LIGHT_GREY = float4(0.7, 0.7, 0.7, 1.0)
+WHITE = float4(1.0, 1.0, 1.0, 1.0)
+TRANSPARENT = float4(0.0, 0.0, 0.0, 0.0)
+
+
+# Initalizing basic scales :
+SPAWN = float3(20.0, 1.0, 20.0)
+BIG_PLATF = float3(15.0, 1.0, 15.0)
+PLATF = float3(10.0, 1.0, 15.0)
+SMALL_PLATF = float3(5.0, 1.0, 5.0)
+HIGH_OBSTACLE = float3(1.0, 5.0, 10.0) # Longer on the z and y axes
+OBSTACLE = float3(1.0, 1.0, 10.0) # Longer on the z axis
+SMALL_OBSTACLE = float3(0.5, 0.8, 5.0)
+
+
+
+
+# Creates the player
+player = obj(
+    "Player", 
+    model=pyramid_model, 
+    color=GREEN, # Green player
+    tag="Player",              # Assign tag
+    layer=LAYER_PLAYER           # Assign layer
+) 
+player.position.z = -10.0 # Move it back a bit so it's visible with default setup (near = 0.1, so it must be > 0.1)
+
+# Scale the player
+player.Scale(0.5, 0.5, 0.5) # Make the player half its original size
+# Or you can do it directly: player.scale = float3(0.5, 0.5, 0.5)
+
+# Defines a collider for the player
+# The AABB is defined for the *unscaled* model (size 2.0). The get_world_aabb will scale it.
+player.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+player.is_trigger = False
+player.apply_gravity = True
+# Add a grounded flag as an attribute of the player object
+player.is_grounded = False 
+
+player_texture = load_texture_func("assets/textures/Checkerboard_pattern.png") # Make sure this path is correct
+if player_texture:
+    player.texture = player_texture
+else:
+    print("Failed to load player texture. Player will render with solid color.")
+
+
+# Load an OBJ model directly using the provided load_model_func
+# This function already returns a properly configured Model object.
+try:
+    # Example using a relative path to your engine.py:
+    # (Assuming main.pyg is in 'scripts/' and assets in 'assets/')
+    # Path to the .obj file
+    obj_file_path = os.path.join(PROJECT_ROOT_DIR, "assets", "models", "top hat.obj")
+    
+    # Check if the file exists before attempting to load
+    if os.path.exists(obj_file_path):
+        hat = obj(
+            "Hat",
+            model=load_model_func(obj_file_path), # This directly gets a Model object
+            color=BLACK,
+            tag="Hat",
+            layer="DEFAULT",
+            is_static=True
+        )
+        hat.MoveGlobal(0.0, 1.0, 0.0)
+        hat.Scale(0.5, 0.5, 0.5)
+        hat.apply_gravity = False
+        player.add_child(hat) # OR hat.parent = player
+        Scene.add_object(hat)
+        print(f"Loaded {obj_file_path}")
+    else:
+        print(f"Warning: OBJ file not found at {obj_file_path}. Skipping custom model.")
+
+except Exception as e:
+    print(f"An error occurred while trying to load the custom OBJ model: {e}")
+
+# For your character and hat setup
+print(f"Character initial world pos: {player.get_world_position()}")
+print(f"Hat initial local pos: {hat.position}")
+print(f"Hat initial world pos: {hat.get_world_position()}")
+
+# Creates a rotating obstacle
+obstacle = obj(
+    "Obstacle", 
+    model=cube_model, # Sharing the same cube_model data
+    color=RED,        # Red obstacle
+    tag="Obstacle",   # Assign tag
+    layer=LAYER_DEFAULT, # Assign layer
+    is_static=True
+) 
+obstacle.MoveGlobal(10.0, -3.0, -10.0)
+obstacle.Scale(OBSTACLE)
+obstacle.apply_gravity = False
+
+obstacle_texture = load_texture_func("assets/textures/wall.png")
+if obstacle_texture:
+    obstacle.texture = obstacle_texture
+else:
+    print("Failed to load obstacle texture. Obstacle will render with solid color.")
+
+# Defines a collider for the obstacle
+obstacle.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+obstacle.is_trigger = False # Make obstacle solid too for physical collision response
+
+
+# Creates the ground, a big plane
+ground = obj(
+    "Ground", 
+    model=cube_model, 
+    color=DARK_GREY, # Grey ground
+    tag="Ground",              # Assign tag
+    layer=LAYER_GROUND,           # Assign layer
+    is_static=True
+) 
+ground.MoveGlobal(0, -5.0, -10.0)
+ground.Scale(SPAWN)
+ground.apply_gravity = False
+
+ground_texture = load_texture_func("assets/textures/ground.png")
+if ground_texture:
+    ground.texture = ground_texture
+else:
+    print("Failed to load ground texture. Ground will render with solid color.")
+
+ground.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+ground.is_trigger = False # Ground should be solid
+
+# Creates the ground2, a big plane
+ground2 = obj(
+    "Ground2", 
+    model=cube_model, 
+    color=LIGHT_GREY, # Light grey ground
+    tag="Ground",              # Assign tag
+    layer=LAYER_GROUND,           # Assign layer
+    is_static=True
+) 
+ground2.MoveGlobal(30, 0.0, -10.0)
+ground2.Scale(PLATF)
+ground2.apply_gravity = False
+
+if ground_texture:
+    ground.texture = ground_texture
+else:
+    print("Failed to load ground texture. Ground2 will render with solid color.")
+
+ground2.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+ground2.is_trigger = False # Ground should be solid
+
+
+ground3 = obj(
+    "Ground3", 
+    model=cube_model, 
+    color=LIGHT_GREY, # Light grey ground
+    tag="Ground",              # Assign tag
+    layer=LAYER_GROUND,           # Assign layer
+    is_static=True
+) 
+ground3.MoveGlobal(ground2.position.x, ground2.position.y + 6.0, ground2.position.z + 20.0)
+ground3.Scale(SMALL_PLATF)
+ground3.apply_gravity = False
+
+if ground_texture:
+    ground3.texture = ground_texture
+else:
+    print("Failed to load ground texture. Ground3 will render with solid color.")
+
+ground3.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+ground3.is_trigger = False # Ground should be solid
+
+
+
+goal = obj(
+    "Goal", 
+    model=cube_model, 
+    color=YELLOW, # Yellow goal
+    tag="Ground",              # Assign tag
+    layer=LAYER_GROUND,           # Assign layer
+    is_static=True
+) 
+goal.MoveGlobal(ground3.position.x, ground3.position.y + 6.0, ground3.position.z + 20.0)
+goal.Scale(SMALL_PLATF)
+goal.apply_gravity = False
+
+goal_texture = load_texture_func("assets/textures/goal.png")
+if goal_texture:
+    goal.texture = goal_texture
+else:
+    print("Failed to load goal texture. Goal will render with solid color.")
+
+goal.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+goal.is_trigger = False # Ground should be solid
+
+
+# Creates the obstacle2, a second obstacle on ground2
+obstacle2 = obj(
+    "Obstacle2", 
+    model=cube_model, 
+    color=RED,
+    tag="Obstacle",              # Assign tag
+    layer=LAYER_ENEMY,           # Assign layer
+    is_static=True
+) 
+obstacle2.MoveGlobal(ground2.position.x, ground2.position.y + 2.0, ground2.position.z)
+obstacle2.Scale(SMALL_OBSTACLE)
+obstacle2.apply_gravity = False
+
+if obstacle_texture:
+    obstacle2.texture = obstacle_texture
+else:
+    print("Failed to load obstacle texture. Obstacle2 will render with solid color.")
+
+obstacle2.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+obstacle2.is_trigger = False
+
+
+obstacle3 = obj(
+    "Obstacle3", 
+    model=cube_model, 
+    color=RED,
+    tag="Obstacle",              # Assign tag
+    layer=LAYER_ENEMY,           # Assign layer
+    is_static=True
+) 
+obstacle3.MoveGlobal(ground2.position.x, ground2.position.y + 2.0, ground2.position.z + 12.0)
+obstacle3.Turn(0.0, 30.0, 0.0)
+obstacle3.Scale(SMALL_OBSTACLE)
+obstacle3.apply_gravity = False
+
+if obstacle_texture:
+    obstacle3.texture = obstacle_texture
+else:
+    print("Failed to load obstacle texture. Obstacle3 will render with solid color.")
+
+obstacle3.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+obstacle3.is_trigger = False # Ground should be solid
+
+
+obstacle4 = obj(
+    "Obstacle4", 
+    model=cube_model, 
+    color=RED,
+    tag="Obstacle",              # Assign tag
+    layer=LAYER_ENEMY,           # Assign layer
+    is_static=True
+) 
+obstacle4.MoveGlobal(ground2.position.x - 10, ground2.position.y + 2.0, ground2.position.z)
+obstacle4.Turn(0.0, 60.0, 0.0)
+obstacle4.Scale(SMALL_OBSTACLE)
+obstacle4.apply_gravity = False
+
+if obstacle_texture:
+    obstacle4.texture = obstacle_texture
+else:
+    print("Failed to load obstacle texture. Obstacle4 will render with solid color.")
+
+obstacle4.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+obstacle4.is_trigger = False # Ground should be solid
+
+
+
+obstacle5 = obj(
+    "Obstacle5", 
+    model=cube_model, 
+    color=RED,
+    tag="Obstacle",              # Assign tag
+    layer=LAYER_ENEMY,           # Assign layer
+    is_static=True
+) 
+obstacle5.MoveGlobal(ground3.position.x, ground3.position.y + 1.0, ground3.position.z)
+obstacle5.Scale(SMALL_OBSTACLE)
+obstacle5.apply_gravity = False
+
+if obstacle_texture:
+    obstacle5.texture = obstacle_texture
+else:
+    print("Failed to load obstacle texture. Obstacle5 will render with solid color.")
+
+obstacle5.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+obstacle5.is_trigger = False # Ground should be solid
+
+
+obstacle6 = obj(
+    "Obstacle6", 
+    model=cube_model, 
+    color=RED,
+    tag="Obstacle",              # Assign tag
+    layer=LAYER_ENEMY,           # Assign layer
+    is_static=True
+) 
+obstacle6.MoveGlobal(ground3.position.x, ground3.position.y + 7.0, ground3.position.z)
+obstacle6.Scale(HIGH_OBSTACLE)
+obstacle6.apply_gravity = False
+
+if obstacle_texture:
+    obstacle6.texture = obstacle_texture
+else:
+    print("Failed to load obstacle texture. Obstacle6 will render with solid color.")
+
+obstacle6.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+obstacle6.is_trigger = False # Ground should be solid
+
+
+void = obj(
+    "Void", 
+    model=cube_model,
+    color=TRANSPARENT,
+    tag="Void",              # Assign tag
+    layer=LAYER_ENEMY,           # Assign layer
+    is_static=True
+) 
+void.MoveGlobal(0.0, -30.0, 0.0)
+void.Scale(200.0, 1.0, 200.0)
+void.apply_gravity = False
+
+void_texture = load_texture_func("assets/textures/void.png") # Not necessary as it will be transparent, but still good just in case
+if void_texture:
+    void.texture = void_texture
+else:
+    print("Failed to load void texture. Void will render with solid color.")
+
+void.collider = AABB.from_center_and_size(float3(0, 0, 0), float3(2.0, 2.0, 2.0))
+void.is_trigger = True
+
+
+##############################
+### ADDING ALL THE OBJECTS ###
+######## TO THE SCENE ########
+##############################
+
+Scene.add_object(player)
+Scene.add_object(obstacle)
+Scene.add_object(obstacle2)
+Scene.add_object(obstacle3)
+Scene.add_object(obstacle4)
+Scene.add_object(obstacle5)
+Scene.add_object(obstacle6)
+Scene.add_object(void)
+Scene.add_object(ground)
+Scene.add_object(ground2)
+Scene.add_object(ground3)
+Scene.add_object(goal)
+
+
+
+PLAYER_MOVE_SPEED = 6.0  # Units per second
+PLAYER_ROT_SPEED = 180.0 # Degrees per second - make this higher for snappier turns
+OBSTACLE_ROT_SPEED = 30.0 # Degrees per second
+
+MAIN_CAMERA_MOVE_SPEED = 8.0 # Units per second (for debug camera)
+MAIN_CAMERA_ROT_SPEED = 180.0 # Degrees per second (for camera follow rotation speed)
+
+# Camera follow constants
+CAMERA_FOLLOW_DISTANCE = 10.0 # How far behind the player the camera should be
+CAMERA_HEIGHT_OFFSET = 3.0   # How high above the player the camera should be
+CAMERA_SMOOTH_SPEED = 5.0    # How quickly the camera moves to its target position
+
+# Little helper functions for angles
+def normalize_angle(angle):
+    # Normalize angle to be within 0, 360
+    return angle % 360.0
+
+def shortest_angle_diff(current_angle, target_angle):
+    """Calculates the shortest angular difference between two angles (in degrees)."""
+    diff = target_angle - current_angle
+    # Normalize diff to be between -180 and 180
+    if diff > 180:
+        diff -= 360
+    elif diff < -180:
+        diff += 360
+    return diff
+
+
+
+def Respawn():
+    player.MoveGlobal(0.0, 0.0, 0.0)
+    # print("Respawned !")
+
+
+
+# Collision normal explanation :
+# y -> 1 = up / -1 = down;
+# x -> 1 = right / -1 = left;
+# z -> 1 = front / -1 = back.
+
+# Detects collisions and triggers
+# All collision/trigger callbacks now accept a third argument: collision_normal
+def on_player_collision_enter(self_obj, other_obj, collision_normal):
+    # print(f"[{self_obj.name}] JUST COLLIDED with [{other_obj.name}]! Normal: {collision_normal}")
+    # Example: If player hits something from below (head-bonk)
+    if collision_normal.y < -0.7: # Mostly pointing downwards
+        self_obj.velocity.y = 0 # Stop upward motion if hitting head on something
+    
+    if collision_normal.y > 0.7: # if collision normal is mostly downwards, then we hit ground
+        self_obj.is_grounded = True
+    
+    if other_obj.GetTag() == "Obstacle":
+        Respawn()
+
+# Use this for continuous ground detection
+def on_player_collision_stay(self_obj, other_obj, collision_normal):
+    # print(f"[{self_obj.name}] IS COLLIDING with [{other_obj.name}]... Normal: {collision_normal}")
+    
+    # Check if the collision normal indicates contact from above (player on top of ground)
+    if collision_normal.y > 0.7: # A normal of (0, 1, 0) means pushing up from below
+        self_obj.is_grounded = True
+        # print("Player is on the ground!")
+    # You could add other specific checks for "Obstacle" here too
+
+def on_player_collision_exit(self_obj, other_obj, collision_normal):
+    # print(f"[{self_obj.name}] STOPPED COLLIDING with [{other_obj.name}]! Normal: {collision_normal}")
+    # If player leaves ground, set is_grounded to False
+    if other_obj.tag == "Ground":
+        self_obj.is_grounded = False # Set player's attribute, not global variable
+
+
+def on_player_trigger_enter(self_obj, other_obj, collision_normal):
+    print(f"[{self_obj.name}] JUST ENTERED trigger zone of [{other_obj.name}]! Normal: {collision_normal}")
+
+    if other_obj.GetTag() == "Void":
+        Respawn()
+
+def on_player_trigger_exit(self_obj, other_obj, collision_normal):
+    print(f"[{self_obj.name}] JUST EXITED trigger zone of [{other_obj.name}]! Normal: {collision_normal}")
+
+
+def player_update(current_active_camera, delta_time):
+    # Determine raw input direction
+    desired_local_x_move_input = 0.0 # For strafing (if enabled)
+    desired_local_z_move_input = 0.0 # For forward/backward movement
+
+    # Determine desired rotation input
+    rotation_input_y = 0.0 # For turning left/right
+
+    if current_active_camera is main_camera:
+        
+        # --- Handle Movement Input ---
+        # Initialize player's horizontal velocity to zero for this frame's calculation
+        # This prevents lingering momentum from previous frames' input.
+        player.SetVelocity(0.0, player.velocity.y, 0.0) 
+
+        # Forward/Backward Movement (Always relative to camera)
+        if Input.is_key_down("W"):
+            desired_local_z_move_input -= 1.0 # Forward relative to camera
+        if Input.is_key_down("S"):
+            desired_local_z_move_input += 1.0 # Backward relative to camera
+
+        # --- Handle Rotation Input (A/D for turning) ---
+        if Input.is_key_down("A"):
+            rotation_input_y += 1.0 # Turn left
+        if Input.is_key_down("D"):
+            rotation_input_y -= 1.0 # Turn right
+
+        # --- Apply Player Rotation based on Input ---
+        if abs(rotation_input_y) > 1e-6:
+            # Player turns directly based on 'A'/'D' input
+            # No smoothing needed here, just apply the turn speed directly
+            player.Turn(0.0, rotation_input_y * PLAYER_ROT_SPEED * delta_time, 0.0)
+
+        # --- Apply Player Movement based on Input ---
+        # The player's forward/backward movement should be relative to *itself*,
+        # not the camera, if 'A'/'D' are for turning.
+        # If we *only* use W/S for movement, then we use player's rotation for movement direction.
+        
+        # Calculate the player's current forward and right vectors
+        # Using the player's own rotation matrix for its local movement directions.
+        player_yaw_matrix = matrix_from_euler_angles(0, player.rotation.y, 0)
+        
+        # Player's local forward vector (typically -Z in OpenGL, if player faces -Z)
+        # Assuming player's local forward is (0, 0, -1) and right is (1, 0, 0)
+        local_forward = np.array([0.0, 0.0, -1.0], dtype='f4')
+        local_right = np.array([1.0, 0.0, 0.0], dtype='f4')
+
+        # Transform local forward/right to world space based on player's current orientation
+        world_forward_vector = player_yaw_matrix @ local_forward
+        world_right_vector = player_yaw_matrix @ local_right
+
+        current_move_x = 0.0
+        current_move_z = 0.0
+
+        # Apply forward/backward movement based on player's forward vector
+        if abs(desired_local_z_move_input) > 1e-6:
+            # We add to player's velocity in the direction of its *own* forward vector
+            # (or backward vector if desired_local_z_move_input is positive)
+            player.velocity.x += world_forward_vector[0] * -desired_local_z_move_input * PLAYER_MOVE_SPEED # Multiply by -input because -Z is forward
+            player.velocity.z += world_forward_vector[2] * -desired_local_z_move_input * PLAYER_MOVE_SPEED
+
+        # IMPORTANT: If you *still* want strafing (moving sideways relative to player's view)
+        # while using A/D for turning, you would uncomment/adjust this:
+        # if abs(desired_local_x_move_input) > 1e-6:
+        #     player.velocity.x += world_right_vector[0] * desired_local_x_move_input * PLAYER_MOVE_SPEED
+        #     player.velocity.z += world_right_vector[2] * desired_local_x_move_input * PLAYER_MOVE_SPEED
+
+
+        # No need for separate player rotation to face movement direction if A/D are for turning.
+        # The player's rotation is now directly controlled by A/D.
+        # The movement logic (W/S) uses the player's *current* rotation.
+
+        # JUMPING:
+        if Input.is_key_pressed("SPACE") and player.is_grounded:
+            player.SetVelocity(float3(player.velocity.x, 16.0, player.velocity.z))
+            player.is_grounded = False
+            # print("Jump")
+        # elif Input.is_key_pressed("SPACE"): # This check is redundant after a successful jump
+            # print("Not Grounded")
+
+
+
+def obstacle_update(current_active_camera, delta_time):
+    obstacle.Turn(0, OBSTACLE_ROT_SPEED * delta_time, 0)
+
+def obstacle2_update(current_active_camera, delta_time):
+    obstacle2.Turn(0, OBSTACLE_ROT_SPEED * delta_time * 2, 0)
+
+def obstacle3_update(current_active_camera, delta_time):
+    obstacle3.Turn(0, OBSTACLE_ROT_SPEED * delta_time, 0)
+
+def obstacle4_update(current_active_camera, delta_time):
+    obstacle4.Turn(0, OBSTACLE_ROT_SPEED * delta_time * 1.5, 0)
+
+def obstacle5_update(current_active_camera, delta_time):
+    obstacle5.Turn(0, OBSTACLE_ROT_SPEED * delta_time * 2.5, 0)
+
+def obstacle6_update(current_active_camera, delta_time):
+    obstacle6.Turn(0, OBSTACLE_ROT_SPEED * delta_time * 2.5, 0)
+
+
+def main_camera_control_update(current_active_camera: Camera, delta_time: float):
+    if current_active_camera is main_camera:
+        # --- CAMERA POSITION FOLLOW ---
+        # Calculate the desired position of the camera behind the player.
+        # This offset is *relative to the player's current facing direction*.
+
+        # Local offset (behind the player, and slightly above)
+        # Note: In a right-handed Z-forward system (OpenGL), +Z is "into" the screen/backward.
+        # So, a positive Z value for CAMERA_FOLLOW_DISTANCE puts the camera behind the player.
+        local_offset_vector = np.array([0.0, CAMERA_HEIGHT_OFFSET, CAMERA_FOLLOW_DISTANCE], dtype='f4')
+
+        # Get player's full model matrix to correctly orient the offset
+        player_model_matrix = player.get_model_matrix() # NOW WE USE THIS!
+
+        # Transform local offset to world space using the player's model matrix.
+        # We need to treat local_offset_vector as a position (homogeneous coord w=1)
+        # to apply the full transformation correctly, then extract the XYZ components.
+        # OR, better: just use the rotation part of the player's model matrix for the direction.
+        # Let's use the rotation part for direction, as offset is a directional vector.
+        player_rotation_matrix_3x3 = player_model_matrix[:3, :3]
+        world_offset_vector = player_rotation_matrix_3x3 @ local_offset_vector
+        
+        # Calculate target world position for the camera
+        target_camera_position = float3(
+            player.position.x + world_offset_vector[0],
+            player.position.y + world_offset_vector[1],
+            player.position.z + world_offset_vector[2]
+        )
+
+        # Smoothly move camera towards target position
+        # Clamp to 1.0 to prevent overshooting, especially with low frame rates
+        pos_lerp_factor = min(1.0, CAMERA_SMOOTH_SPEED * delta_time)
+
+        current_active_camera.position.x = current_active_camera.position.x + (target_camera_position.x - current_active_camera.position.x) * pos_lerp_factor
+        current_active_camera.position.y = current_active_camera.position.y + (target_camera_position.y - current_active_camera.position.y) * pos_lerp_factor
+        current_active_camera.position.z = current_active_camera.position.z + (target_camera_position.z - current_active_camera.position.z) * pos_lerp_factor
+
+        # --- CAMERA ROTATION (LOOK-AT) ---
+        # Make the camera always look at the player's position.
+
+        # Calculate the vector from the camera's current position to the player's current position
+        # It's important to use the player's *actual* position and the camera's *interpolated* position.
+        look_direction = float3(
+            player.position.x - current_active_camera.position.x,
+            player.position.y - current_active_camera.position.y,
+            player.position.z - current_active_camera.position.z
+        )
+        
+        # Normalize the look direction
+        magnitude = math.sqrt(look_direction.x**2 + look_direction.y**2 + look_direction.z**2)
+        if magnitude > 1e-6: # Avoid division by zero
+            look_direction.x /= magnitude
+            look_direction.y /= magnitude
+            look_direction.z /= magnitude
+        else:
+            # If camera is exactly on player, define a default forward direction
+            # This should rarely happen in a game.
+            look_direction = float3(0, 0, -1) # Point forward along negative Z (standard camera forward)
+
+
+        # Calculate pitch (rotation around X-axis) and yaw (rotation around Y-axis)
+        # OpenGL cameras typically look down -Z.
+        # pitch_radians: rotation around X axis (up/down look)
+        #  atan2(y, sqrt(x^2 + z^2)) for pitch
+        pitch_radians = math.atan2(look_direction.y, math.sqrt(look_direction.x**2 + look_direction.z**2))
+        
+        # yaw_radians: rotation around Y axis (left/right look)
+        #  atan2(x, z) for yaw, adjust for coordinate system / forward vector
+        # If camera forward is -Z, then positive X means right, negative Z means forward.
+        # For a look-at, it's often atan2(target_x - camera_x, target_z - camera_z)
+        # Using -look_direction.x and -look_direction.z aligns with OpenGL's -Z forward.
+        yaw_radians = math.atan2(-look_direction.x, -look_direction.z)
+
+        # Convert to degrees and assign to camera's rotation
+        current_active_camera.rotation.x = math.degrees(pitch_radians)
+        current_active_camera.rotation.y = math.degrees(yaw_radians)
+        current_active_camera.rotation.z = 0.0 # Keep roll at zero for a typical 3rd person camera
+        
+        # Normalize angles (optional, but good practice for consistency)
+        current_active_camera.rotation.x = normalize_angle(current_active_camera.rotation.x)
+        current_active_camera.rotation.y = normalize_angle(current_active_camera.rotation.y)
+
+        # Removed manual camera controls.
+
+
+# Assign update functions
+player.update = player_update
+obstacle.update = obstacle_update
+obstacle2.update = obstacle2_update
+obstacle3.update = obstacle3_update
+obstacle4.update = obstacle4_update
+obstacle5.update = obstacle5_update
+obstacle6.update = obstacle6_update
+
+player.on_collision_enter = on_player_collision_enter
+player.on_collision_stay = on_player_collision_stay
+player.on_collision_exit = on_player_collision_exit
+player.on_trigger_enter = on_player_trigger_enter
+player.on_trigger_exit = on_player_trigger_exit
+
+# You can add stay/exit/trigger callbacks for obstacle too if needed
+
+# Create a dummy object to run the main camera's update logic
+main_camera_controller_obj = obj("Main Camera Controller")
+main_camera_controller_obj.update = main_camera_control_update
+Scene.add_object(main_camera_controller_obj)
