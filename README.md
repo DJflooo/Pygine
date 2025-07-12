@@ -32,10 +32,9 @@ To get Pygine up and running, follow these simple steps:
 
 1.  **Clone the Repository:**
     ```bash
-    git clone [https://github.com/DJflooo/Pygine.git](https://github.com/YourUsername/Pygine.git)
+    git clone https://github.com/DJflooo/Pygine.git
     cd Pygine
     ```
-    *(Replace `YourUsername` with your actual GitHub username)*
 
 2.  **Install Dependencies:**
     Pygine relies on `moderngl`, `glfw`, and `numpy`. You can install them using pip:
@@ -83,6 +82,10 @@ Pygine is an open-source project, and contributions are welcome! If you have ide
 4.  Commit your changes (`git commit -m 'Add some feature'`).
 5.  Push to the branch (`git push origin feature/YourFeatureName`).
 6.  Open a Pull Request.
+
+## 📄 License
+
+Pygine is released under the [MIT License](LICENSE.md).
 
 ---
 
