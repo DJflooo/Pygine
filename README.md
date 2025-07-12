@@ -38,28 +38,44 @@ While this provides great flexibility, it also means that **any code in these `.
 
 **Exercise extreme caution when downloading or running Pygine scripts from third parties.**
 
+
 ## 🚀 Getting Started
 
-To get Pygine up and running, follow these simple steps:
+To get Pygine up and running, choose one of the following methods:
 
-1.  **Clone the Repository:**
+### Option 1: Download the Project (Recommended for Beginners)
+
+This is the simplest way to get Pygine if you just want to run the engine and experiment with it, without needing Git installed.
+
+1.  **Go to the Pygine GitHub repository:** Navigate to `https://github.com/DJflooo/Pygine`.
+2.  **Click the green "Code" button** on the repository page.
+3.  From the dropdown menu, select **"Download ZIP"**.
+4.  Once downloaded, extract the `.zip` file to a location on your computer.
+
+### Option 2: Clone the Repository (For Developers & Contributors)
+
+If you plan to contribute to Pygine, keep your local copy updated easily, or explore the project's version history, cloning with Git is the recommended approach. You will need [Git installed](https://git-scm.com/downloads) on your system.
+
+1.  **Open your terminal or command prompt.**
+
+2.  **Clone the Repository:**
     ```bash
     git clone https://github.com/DJflooo/Pygine.git
     cd Pygine
     ```
 
-2.  **Install Dependencies:**
+3.  **Install Dependencies:**
     Pygine relies on `moderngl`, `glfw`, and `numpy`. You can install them using pip:
     ```bash
     pip install moderngl glfw numpy
     ```
 
-3.  **Run Pygine:**
+4.  **Run Pygine:** (when you made your first script)
     Execute the `main.py` file from the project root:
     ```bash
     python main.py
     ```
-    (or you can use VS Code to quickly execute and make changes to your scripts.)
+    *(or you can use VS Code to quickly execute and make changes to your scripts (strongly recommend it). Just know that if nothing happens, it means you didn't have anything in scripts/. In that case, you should go read TUTORIAL.txt)*
     Pygine will automatically look for and load all `.pyg` files in the `scripts/` directory.
 
 ## ✍️ Creating Your First Pygine Game
