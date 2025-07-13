@@ -4,6 +4,8 @@
 
 Welcome to Pygine! This documentation will guide you through the basics of creating games with Pygine, from setting up your first object to understanding its core systems.
 
+/!\ For a better and more advanced documentation, go to the GitHub page's wiki.
+
 
 ################
 ######---#######
